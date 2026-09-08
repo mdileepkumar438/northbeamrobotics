@@ -1,4 +1,10 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+// Meta CSP is supported by static GitHub Pages. Header-only protections such as
+// frame-ancestors and HSTS must be configured at a hosting/proxy layer, not here.
+const policy = "default-src 'none'; script-src 'self'; script-src-attr 'none'; style-src 'self' https://fonts.googleapis.com; style-src-attr 'none'; font-src https://fonts.gstatic.com; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests";
+const securityMeta = `<meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="strict-origin-when-cross-origin">`;
+const cleanPath = slug => slug==='index' ? '/' : `/${slug}/`;
 
 const pages = [
   ['index','Home'],['technology','Technology'],['industries','Industries'],['solutions','Solutions'],['research','R&D'],['about','About'],['contact','Contact']
@@ -40,8 +46,24 @@ contact: `${intro('06 / Contact','What could we<br><span>build together?</span>'
 for (const [slug,title] of pages) {
   const nav = pages.filter(([s])=>s!=='index').map(([s,t])=>`<a href="${s}.html" ${s===slug?'aria-current="page"':''} ${s==='contact'?'class="nav-contact"':''}>${t}</a>`).join('');
   const description = slug==='index'?'NorthBeam Robotics — intelligence in motion. Robotics, autonomy and physical AI from Hyderabad.':`${title} at NorthBeam Robotics. Explore our robotics development direction, engineering approach and collaboration opportunities.`;
-  writeFileSync(`${slug}.html`,`<!doctype html>
+  const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title==='Home'?'NorthBeam Robotics | Intelligence in motion':title+' | NorthBeam Robotics'}</title><meta name="description" content="${description}"><meta name="theme-color" content="#060c17"><link rel="canonical" href="https://northbeamrobotics.com/${slug==='index'?'':slug+'.html'}"><link rel="icon" href="assets/northbeam-concept.svg" type="image/svg+xml"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="future.css?v=1"><script src="experience.js?v=1" defer></script></head>
-<body data-page="${slug}"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="wrap nav-wrap">${brand}<button class="menu-toggle" aria-expanded="false" aria-controls="navigation">Menu <span aria-hidden="true">☰</span></button><nav id="navigation" aria-label="Main navigation">${nav}</nav></div></header><main id="main">${bodies[slug]}</main><footer class="wrap footer"><div>${brand}<p>Intelligence for the physical world.</p></div><div class="footer-links"><a href="technology.html">Technology</a><a href="about.html">Company</a><a href="contact.html">Contact</a></div><div class="footer-meta"><span>HYDERABAD / INDIA</span><span>© ${new Date().getFullYear()} NorthBeam Robotics</span></div></footer></body></html>\n`);
+<body data-page="${slug}"><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="wrap nav-wrap">${brand}<button class="menu-toggle" aria-expanded="false" aria-controls="navigation">Menu <span aria-hidden="true">☰</span></button><nav id="navigation" aria-label="Main navigation">${nav}</nav></div></header><main id="main">${bodies[slug]}</main><footer class="wrap footer"><div>${brand}<p>Intelligence for the physical world.</p></div><div class="footer-links"><a href="technology.html">Technology</a><a href="about.html">Company</a><a href="contact.html">Contact</a></div><div class="footer-meta"><span>HYDERABAD / INDIA</span><span>© ${new Date().getFullYear()} NorthBeam Robotics</span></div></footer></body></html>\n`;
+  const cleanHtml = html
+    .replace('<meta charset="utf-8">', `<meta charset="utf-8">${securityMeta}`)
+    .replace(/href="([a-z]+)\.html"/g, (_,name) => `href="${cleanPath(name)}"`)
+    .replace(/href="assets\//g, 'href="/assets/')
+    .replace('href="future.css?v=1"', 'href="/future.css?v=1"')
+    .replace('src="experience.js?v=1"', 'src="/experience.js?v=1"')
+    .replace(`href="https://northbeamrobotics.com/${slug==='index'?'':slug+'.html'}"`, `href="https://northbeamrobotics.com${cleanPath(slug)}"`);
+  if (slug==='index') {
+    writeFileSync('index.html', cleanHtml);
+  } else {
+    mkdirSync(slug, {recursive:true});
+    writeFileSync(`${slug}/index.html`, cleanHtml);
+    // GitHub Pages cannot configure arbitrary server-side 301 rules. These
+    // compatibility pages use a static refresh plus an accessible manual link.
+    writeFileSync(`${slug}.html`, `<!doctype html>\n<html lang="en"><head><meta charset="utf-8">${securityMeta}<meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="refresh" content="0; url=${cleanPath(slug)}"><link rel="canonical" href="https://northbeamrobotics.com${cleanPath(slug)}"><title>${title} | NorthBeam Robotics</title><link rel="stylesheet" href="/future.css?v=1"></head><body><main class="page-intro wrap"><h1>This page has moved.</h1><p><a class="button primary" href="${cleanPath(slug)}">Continue to ${title}</a></p></main></body></html>\n`);
+  }
 }
-console.log(`Built ${pages.length} complete static pages.`);
+console.log(`Built ${pages.length} clean-URL pages and ${pages.length-1} compatibility redirects with CSP.`);
